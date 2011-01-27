@@ -1,0 +1,305 @@
+<html>
+    <head>
+        <script src="sylvester.js" type="text/javascript">
+        </script>
+        <script src="glUtils.js" type="text/javascript">
+        </script>
+        <script src="seedrandom.js" type="text/javascript">
+        </script>
+        <script src="compability.js" type="text/javascript">
+        </script>
+        <!-- common junk -->
+        <script src="parts/newmath.js" type="text/javascript">
+        </script>
+        <script src="parts/gla_stuff.js" type="text/javascript">
+        </script>
+        <script src="music.js" type="text/javascript">
+        </script>
+        <script src="parts/images.js" type="text/javascript">
+        </script>
+        <script src="parts/events.js" type="text/javascript">
+        </script>
+        <!-- parts -->
+        <script src="parts/p_tunnel.js" type="text/javascript">
+        </script>
+        <script src="parts/p_intro.js" type="text/javascript">
+        </script>
+        <script src="parts/p_cubes.js" type="text/javascript">
+        </script>
+        <script src="parts/p_greetings.js" type="text/javascript">
+        </script>
+        <script src="parts/p_misc.js" type="text/javascript">
+        </script>
+        <script src="parts/p_name.js" type="text/javascript">
+        </script>
+        <script src="parts/p_twist.js" type="text/javascript">
+        </script>
+        <script src="parts/p_twist3d.js" type="text/javascript">
+        </script>
+        <script src="parts/p_twister.js" type="text/javascript">
+        </script>
+        <script src="parts/p_silu.js" type="text/javascript">
+        </script>
+        <script src="parts/p_klask.js" type="text/javascript">
+        </script>
+        <script src="parts/p_cubes.js" type="text/javascript">
+        </script>
+        <script src="parts/p_flareblob.js" type="text/javascript">
+        </script>
+        <script src="parts/p_psyk.js" type="text/javascript">
+        </script>
+        <script src="parts/p_wirelandscape.js" type="text/javascript">
+        </script>
+        <script src="parts/p_sphere.js" type="text/javascript">
+        </script>
+        <script src="parts/p_aftershit.js" type="text/javascript">
+        </script>
+        <!-- app -->
+        <script src="parts/testapp.js" type="text/javascript">
+        </script>
+        <script type="text/javascript">
+            
+            var gl;
+            var frametime = 0.0;
+            function initGL(canvas){
+                try {
+                    gl = canvas.getContext("experimental-webgl");
+                    gl.viewportWidth = canvas.width;
+                    gl.viewportHeight = canvas.height;
+                } 
+                catch (e) {
+                }
+                if (!gl) {
+                    alert("Could not initialise WebGL, sorry :-(");
+                }
+            }
+            
+            var shaderProgram;
+            
+            function initShaders(){
+            
+                var fragmentShader = getShader(gl, "shader-fs");
+                var vertexShader = getShader(gl, "shader-vs");
+                
+                shaderProgram = gl.createProgram();
+                gl.attachShader(shaderProgram, vertexShader);
+                gl.attachShader(shaderProgram, fragmentShader);
+                gl.linkProgram(shaderProgram);
+                
+                if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+                    alert("Could not initialise shaders");
+                }
+                
+                gl.useProgram(shaderProgram);
+                
+                shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+                shaderProgram.textureCoordAttribute = gl.getAttribLocation(shaderProgram, "aTextureCoord");
+                shaderProgram.vertexColorAttribute = gl.getAttribLocation(shaderProgram, "aVertexColor");
+                shaderProgram.vertexNormalAttribute = gl.getAttribLocation(shaderProgram, "aVertexNormal");
+                shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
+                shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+                shaderProgram.nMatrixUniform = gl.getUniformLocation(shaderProgram, "uNMatrix");
+                shaderProgram.tMatrixUniform = gl.getUniformLocation(shaderProgram, "uTMatrix");
+                shaderProgram.textureEnabler = gl.getUniformLocation(shaderProgram, "uUseTexture");
+                shaderProgram.textureSampler = gl.getUniformLocation(shaderProgram, "uSampler");
+                
+                gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+                gl.enableVertexAttribArray(shaderProgram.textureCoordinateAttribute);
+                gl.enableVertexAttribArray(shaderProgram.vertexColorAttribute);
+                gl.enableVertexAttribArray(shaderProgram.vertexNormalAttribute);
+                
+            }
+            
+            function getShader(gl, id){
+                var shaderScript = document.getElementById(id);
+                if (!shaderScript) {
+                    return null;
+                }
+                
+                var str = "";
+                var k = shaderScript.firstChild;
+                while (k) {
+                    if (k.nodeType == 3) 
+                        str += k.textContent;
+                    k = k.nextSibling;
+                }
+                
+                var shader;
+                if (shaderScript.type == "x-shader/x-fragment") {
+                    shader = gl.createShader(gl.FRAGMENT_SHADER);
+                }
+                else 
+                    if (shaderScript.type == "x-shader/x-vertex") {
+                        shader = gl.createShader(gl.VERTEX_SHADER);
+                    }
+                    else {
+                        return null;
+                    }
+                
+                gl.shaderSource(shader, str);
+                gl.compileShader(shader);
+                
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                    alert(gl.getShaderInfoLog(shader));
+                    return null;
+                }
+                
+                return shader;
+            }
+            
+            function mvTranslate(v){
+                var m = Matrix.Translation($V([v[0], v[1], v[2]])).ensure4x4();
+                multMatrix(m);
+            }
+            
+            var starttime;
+            function webGLStart(){
+                var canvas = document.getElementById("video");
+                initGL(canvas);
+                initShaders();
+                initBuffers();
+                
+                testApp__setup();
+                /*
+                gl.clearColor(0.2, 0.2, 0.2, 1.0);
+                gl.clearDepth(1.0)
+				gl.enable(gl.BLEND);
+				gl.blendFunc(gl.ONE,gl.ONE);
+                gl.enable(gl.DEPTH_TEST);
+                gl.depthFunc(gl.LEQUAL);
+                */
+                frametime = 0.0;
+                starttime = (new Date()).getTime();
+                setInterval(drawScene, 1000.0 / 60.0);
+            }
+            
+            //      var triangleVertexPositionBuffer;
+            //    var squareVertexPositionBuffer;
+            function initBuffers(){
+            }
+            
+            function drawScene(){
+            
+                glCompabilityBeforeFrame();
+                
+                gl.clearColor(0.05, 0.05, 0.05, 1.0);
+                gl.clearDepth(20.0);
+                
+                gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+                gl.enable(gl.DEPTH_TEST);
+                gl.depthFunc(gl.LEQUAL);
+                
+                frametime = (new Date()).getTime() - starttime;
+                frametime /= 1000.0;
+                //   frametime *= 1.0;
+               	// frametime += 0.0;
+                glaSetTime(frametime);
+                testApp__draw();
+            }
+        </script>
+        <script id="shader-fs" type="x-shader/x-fragment">
+            #ifdef GL_ES
+            precision highp float;
+            #endif
+            varying vec4 vTextureCoord;
+            varying vec4 vVertexColor;
+            varying vec3 vLightWeighting;
+            uniform sampler2D uSampler;
+            uniform bool uUseTexture;
+            void main(void) {
+            vec4 textureColor;
+            textureColor = vec4(vTextureCoord.x,vTextureCoord.y,1,1);
+            if(uUseTexture)
+            textureColor = texture2D(uSampler, vec2( vTextureCoord.s, vTextureCoord.t ));
+            gl_FragColor = vVertexColor * textureColor;
+            // vec4(textureColor.rgb * vVertexColor * vLightWeighting, textureColor.a * uAlpha);
+            }
+        </script>
+        <script id="shader-vs" type="x-shader/x-vertex">
+            attribute vec3 aVertexPosition;
+            attribute vec3 aVertexNormal;
+            attribute vec4 aVertexColor;
+            attribute vec2 aTextureCoord;
+            uniform mat4 uMVMatrix;
+            uniform mat4 uPMatrix;
+            uniform mat4 uNMatrix;
+            uniform mat4 uTMatrix;
+            // uniform vec3 uAmbientColor;
+            // uniform vec3 uLightingDirection;
+            // uniform vec3 uDirectionalColor;
+            // uniform bool uUseLighting;
+            uniform bool uUseTexture;
+            varying vec4 vTextureCoord;
+            varying vec4 vVertexColor;
+            varying vec3 vLightWeighting;
+            void main(void) {
+            gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+            // vTextureCoord = uTMatrix * vec4(aTextureCoord.s,aTextureCoord.t,0,1);
+            vTextureCoord = vec4(aTextureCoord.s,aTextureCoord.t,0,1);
+            // vTextureCoord = vec4( gl_Position.x, gl_Position.y, 0, 1 );
+            // if (!uUseLighting) {
+            vLightWeighting = vec3( 1, 1, 1 );
+            vVertexColor = aVertexColor;
+            // } else {
+            // vec4 transformedNormal = uNMatrix * vec4(aVertexNormal, 1.0);
+            // float directionalLightWeighting = max(dot(transformedNormal.xyz, uLightingDirection), 0.0);
+            // vLightWeighting = uAmbientColor + uDirectionalColor * directionalLightWeighting;
+            // }
+            }
+        </script>
+        <style>
+            html {
+                border: 0;
+                margin: 0;
+                padding: 0
+            }
+            
+            body {
+                border: 0;
+                margin: 0;
+                padding: 0
+				background-color: #000;
+            }
+            
+            canvas {
+                width: 100%;
+                height: 100%;
+                position: absolute;
+                left: 0px;
+                top: 0px;
+				background-color: #000;
+            }
+            
+            #banner {
+                position: absolute;
+                left: 10px;
+                bottom: 5px;
+                width: 500px;
+                height: 30px;
+                color: #ccc;
+                z-index: 999;
+                font: 8pt Arial;
+            }
+            
+            #banner a {
+                color: #fff;
+            }
+        </style>
+    </head>
+    <body onload="webGLStart();">
+        <canvas id="video" style="border: none;" width="1280" height="720">
+        </canvas>
+        <audio id="music" autoplay="no" src="parts/intromusic.mp3" preload="auto">
+        </audio>
+        <div id="banner">
+            <a href="http://possan.se/2011/01/27/webglass/">webgl-port</a>
+            of our winning <a href="http://pouet.net/prod.php?which=94">64k intro "glass"</a>
+            from the gathering 2000 - tested in chrome
+            <br/>
+            ported by: <a href="http://possan.se">per-olov jernberg</a>
+            (illuminator/psikorp) 
+            - <a href="http://github.com/possan/webglass">code available on github</a>
+        </div>
+    </body>
+</html>
